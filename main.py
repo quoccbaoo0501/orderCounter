@@ -3,14 +3,14 @@ Telegram Order Counter Bot
 Counts orders per product in each group using /done + product name.
 """
 
-import io
 import json
 import os
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
-from telegram import BufferedInputFile, Update
+from telegram import Update
 
 load_dotenv()
 from telegram.ext import Application, CommandHandler, ContextTypes
@@ -218,13 +218,28 @@ async def cmd_clear(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         del data[chat_id]
         _save_data(data)
 
-    # Send TXT file
+    # Send TXT file (temp file works on all platforms and PTB versions)
     filename = f"orders_cleared_{now.strftime('%Y-%m-%d_%H%M')}.txt"
-    file = BufferedInputFile(text.encode("utf-8"), filename=filename)
-    await update.message.reply_document(
-        document=file,
-        caption="✅ All orders cleared for this group. Export attached.",
-    )
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        suffix=".txt",
+        delete=False,
+        encoding="utf-8",
+    ) as f:
+        f.write(text)
+        path = f.name
+    try:
+        with open(path, "rb") as f:
+            await update.message.reply_document(
+                document=f,
+                filename=filename,
+                caption="✅ All orders cleared for this group. Export attached.",
+            )
+    finally:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
 
 
 # ─── Main ──────────────────────────────────────────────────────────────

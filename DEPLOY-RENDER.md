@@ -1,5 +1,9 @@
 # Deploy lên Render
 
+**Lưu ý:** Render **không còn free tier**. Nếu cần deploy miễn phí, xem file **DEPLOY-FREE.md** (Oracle Cloud, Fly.io, Koyeb, Railway).
+
+---
+
 ## Chọn gì khi tạo service?
 
 - **Language / Environment:** chọn **Python 3**
