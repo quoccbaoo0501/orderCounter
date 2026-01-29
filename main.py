@@ -6,11 +6,13 @@ Counts orders per product in each group using /done + product name.
 import json
 import os
 import tempfile
+import time
 from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
 from telegram import Update
+from telegram.error import Conflict
 
 load_dotenv()
 from telegram.ext import Application, CommandHandler, ContextTypes
@@ -78,6 +80,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "📦 *Order Counter Bot*\n\n"
         "• Use `/done <product>` to count an order.\n"
+        "• Use `/remove <product> <quantity>` to subtract orders.\n"
         "• Use `/stats` to see counts per product.\n"
         "• Use `/total` to see total orders in this group.\n"
         "• Use `/clear` to clear all orders and export to TXT.\n"
@@ -120,6 +123,58 @@ async def cmd_done(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     new_count = data[chat_id][canonical]
     await update.message.reply_text(
         f"✅ Order counted for *{canonical}* (total: {new_count})",
+        parse_mode="Markdown",
+    )
+
+
+async def cmd_remove(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Remove quantity from a product: /remove <product> <quantity>"""
+    chat = update.effective_chat
+    if not chat:
+        return
+    args = context.args or []
+    if len(args) < 2:
+        await update.message.reply_text(
+            "❌ Use: `/remove <product> <quantity>`\n"
+            "Example: `/remove GPT RENEW 2`",
+            parse_mode="Markdown",
+        )
+        return
+
+    # Last arg = quantity, rest = product name
+    try:
+        quantity = int(args[-1])
+    except ValueError:
+        await update.message.reply_text(
+            "❌ Quantity must be a number.\n"
+            "Example: `/remove GPT RENEW 2`",
+            parse_mode="Markdown",
+        )
+        return
+    if quantity <= 0:
+        await update.message.reply_text("❌ Quantity must be greater than 0.")
+        return
+
+    product_name = " ".join(args[:-1]).strip()
+    canonical = _product_key(product_name)
+    if not canonical:
+        await update.message.reply_text(
+            "❌ Unknown product. Use `/products` to see valid names.",
+            parse_mode="Markdown",
+        )
+        return
+
+    chat_id = str(chat.id)
+    data = _load_data()
+    if chat_id not in data:
+        data[chat_id] = {}
+    current = data[chat_id].get(canonical, 0)
+    new_count = max(0, current - quantity)
+    data[chat_id][canonical] = new_count
+    _save_data(data)
+
+    await update.message.reply_text(
+        f"✅ Removed *{quantity}* from *{canonical}* (remaining: {new_count})",
         parse_mode="Markdown",
     )
 
@@ -247,12 +302,26 @@ def main() -> None:
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("products", cmd_products))
     app.add_handler(CommandHandler("done", cmd_done))
+    app.add_handler(CommandHandler("remove", cmd_remove))
     app.add_handler(CommandHandler("stats", cmd_stats))
     app.add_handler(CommandHandler("total", cmd_total))
     app.add_handler(CommandHandler("clear", cmd_clear))
 
     print("Bot running. Press Ctrl+C to stop.")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    while True:
+        try:
+            app.run_polling(
+                allowed_updates=Update.ALL_TYPES,
+                drop_pending_updates=True,
+            )
+            break
+        except Conflict:
+            print(
+                "Conflict: another bot instance is running with the same token.\n"
+                "Stop the other instance (e.g. stop 'python main.py' on your PC, "
+                "or disable the other deploy). Retrying in 30s..."
+            )
+            time.sleep(30)
 
 
 if __name__ == "__main__":
