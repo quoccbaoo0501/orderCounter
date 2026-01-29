@@ -1,0 +1,6 @@
+.env
+order_counts.json
+__pycache__/
+*.pyc
+.venv/
+venv/
