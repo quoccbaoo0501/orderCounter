@@ -1,7 +1,0 @@
-# Fly.io – run: fly launch (then fly secrets set BOT_TOKEN=...)
-app = "ordercounter-bot"
-
-[build]
-
-[env]
-  PYTHONUNBUFFERED = "1"

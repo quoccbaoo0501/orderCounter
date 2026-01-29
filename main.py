@@ -29,6 +29,9 @@ PRODUCTS = [
     "Runway Stand",
     "Runway Pro",
     "Runway Unlimited",
+    "Claude Pro",
+    "Claude Max 5",
+    "Claude Max 20"
 ]
 
 DATA_FILE = Path(__file__).parent / "order_counts.json"
