@@ -77,12 +77,12 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
     await update.message.reply_text(
         "📦 *Order Counter Bot*\n\n"
-        "• Use `/done <product>` to count an order — you must *reply* to the order message.\n"
+        "• Use `/done <product>` to count an order.\n"
         "• Use `/stats` to see counts per product.\n"
         "• Use `/total` to see total orders in this group.\n"
         "• Use `/clear` to clear all orders and export to TXT.\n"
         "• Use `/products` to list valid product names.\n\n"
-        "Example: Reply to a message, then send: `/done GPT RENEW`",
+        "Example: `/done GPT RENEW`",
         parse_mode="Markdown",
     )
 
@@ -98,13 +98,6 @@ async def cmd_done(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat = update.effective_chat
     if not chat:
         return
-    if not update.message.reply_to_message:
-        await update.message.reply_text(
-            "❌ You must *reply* to order message when using /done.\n"
-            "Reply to the order/customer message, then send: `/done <product>`",
-            parse_mode="Markdown",
-        )
-        return
     # /done product name → args = ["product", "name"] or ["product"]
     product_name = " ".join(context.args).strip() if context.args else ""
     canonical = _product_key(product_name)
@@ -112,7 +105,7 @@ async def cmd_done(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not canonical:
         await update.message.reply_text(
             "❌ Unknown product. Use `/products` to see valid names.\n"
-            "Example: Reply to a message, then send: `/done GPT RENEW`",
+            "Example: `/done GPT RENEW`",
             parse_mode="Markdown",
         )
         return
