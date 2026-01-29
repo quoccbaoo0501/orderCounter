@@ -3,12 +3,14 @@ Telegram Order Counter Bot
 Counts orders per product in each group using /done + product name.
 """
 
+import io
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
-from telegram import Update
+from telegram import BufferedInputFile, Update
 
 load_dotenv()
 from telegram.ext import Application, CommandHandler, ContextTypes
@@ -78,6 +80,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "• Use `/done <product>` to count an order — you must *reply* to the order message.\n"
         "• Use `/stats` to see counts per product.\n"
         "• Use `/total` to see total orders in this group.\n"
+        "• Use `/clear` to clear all orders and export to TXT.\n"
         "• Use `/products` to list valid product names.\n\n"
         "Example: Reply to a message, then send: `/done GPT RENEW`",
         parse_mode="Markdown",
@@ -175,6 +178,55 @@ async def cmd_total(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
 
 
+async def cmd_clear(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Clear all order data for this group and export to a TXT file."""
+    chat = update.effective_chat
+    if not chat:
+        return
+    chat_id = str(chat.id)
+    data = _load_data()
+    counts = data.get(chat_id, {})
+
+    if not counts or sum(counts.values()) == 0:
+        await update.message.reply_text("No orders to clear in this group.")
+        return
+
+    # Build export text: header then each product (in PRODUCTS order) with count
+    now = datetime.utcnow()
+    date_str = now.strftime("%Y-%m-%d %H:%M UTC")
+    chat_title = getattr(chat, "title", None) or f"Chat {chat_id}"
+    lines = [
+        "Orders cleared from this group",
+        f"Group: {chat_title}",
+        f"Date: {date_str}",
+        "",
+        "Orders (by product):",
+        "-" * 40,
+    ]
+    total = 0
+    for p in PRODUCTS:
+        c = counts.get(p, 0)
+        if c > 0:
+            lines.append(f"  {p}: {c}")
+            total += c
+    lines.append("-" * 40)
+    lines.append(f"Total: {total}")
+    text = "\n".join(lines)
+
+    # Clear data for this group
+    if chat_id in data:
+        del data[chat_id]
+        _save_data(data)
+
+    # Send TXT file
+    filename = f"orders_cleared_{now.strftime('%Y-%m-%d_%H%M')}.txt"
+    file = BufferedInputFile(text.encode("utf-8"), filename=filename)
+    await update.message.reply_document(
+        document=file,
+        caption="✅ All orders cleared for this group. Export attached.",
+    )
+
+
 # ─── Main ──────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -189,6 +241,7 @@ def main() -> None:
     app.add_handler(CommandHandler("done", cmd_done))
     app.add_handler(CommandHandler("stats", cmd_stats))
     app.add_handler(CommandHandler("total", cmd_total))
+    app.add_handler(CommandHandler("clear", cmd_clear))
 
     print("Bot running. Press Ctrl+C to stop.")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
